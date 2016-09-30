@@ -1,0 +1,144 @@
+---
+title: "NOAA Storm Data Analysis"
+author: "Julie Foster"
+date: "September 29, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+
+In this report we explore how storms and severe weather events can cause both public health and economic problems for communities.  Many severe events can result in fatalities, injuries, property damage, and crop damage. In particular, this report answers two key questions.  First, across the United States, which types of events are most harmful with respect to population health.  Secondly, across the United States, which types of events have the greatest economic consequences. 
+
+To investigate these questions, we obtained storm data from the National Oceanic and Atmospheric Administration.'s Storm Events Database. From this data we found that the events that had the largest impact on population health were tornados and the events that had the largest economic impact were:  XXX
+
+## Data Processing
+
+### Loading and Evaluating the Data
+
+From the course web site (https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2), we obtained the storm dataset which begins in the year 1950 and ends in November 2011.  
+
+
+First we read in the dataset, which is a comma-separated-value compressed file
+
+```{r cache=TRUE}
+storm <- read.csv("repdata%2Fdata%2FStormData.csv.bz2", header = TRUE, sep = ",")
+```
+
+Getting to understand the dataset
+
+```{r storm}
+dim(storm)
+head(storm[,1:15])
+str(storm)
+```
+
+We will begin by reducing this large dataset to just the columns we are interested in and create a tidy dataset to begin our analysis.
+
+```{r subStorm}
+library(dplyr)
+subStorm <- select(storm, EVTYPE, FATALITIES, INJURIES, PROPDMG, CROPDMG)
+head(subStorm)
+str(subStorm)
+events <- table(subStorm$EVTYPE)
+str(events)
+```
+
+Quick check for NAs:
+
+```{r}
+sum(is.na(subStorm))
+```
+
+The Storm Data Documentation lists 48 possible event types.  "events" shows the 
+EVTYPE column contains 985 types and thus, needs to be cleaned up.
+
+We will start with making all of the events lower case, then aggregate and subset to get only the rows with some values for the other columns.
+
+```{r}
+subStorm$EVTYPE = factor(tolower(subStorm$EVTYPE))
+subStorm <- aggregate(cbind(FATALITIES,INJURIES,PROPDMG,CROPDMG)~EVTYPE,subStorm,sum)
+subStorm <- subStorm[subStorm$FATALITIES>0 | 
+                         subStorm$INJURIES>0 | 
+                         subStorm$PROPDMG>0 | 
+                         subStorm$CROPDMG>0,]
+events <- table(subStorm$EVTYPE)
+str(events)
+unique(subStorm$EVTYPE[1:20])
+```
+
+This still produces a list that contains more than the official 48 event types. The rest includes mispellings and other incorrect input.  For the purposes of this analysis, only the top 10 storm events will be used.  
+
+
+
+## Results
+
+### Impact of Storm Events on Population
+
+In order to look at how storm events impact the population, we begin by creating the "harm" dataset from EVTYPE, FATALITES, INJURIES, then add new column "total", and add up the fatalities and injuries to see which event causes the most impact.
+
+```{r harm}
+harm <- select(subStorm, EVTYPE, FATALITIES, INJURIES)
+harm <- harm[harm$FATALITIES>0 | harm$INJURIES>0, ]
+   
+harm <- mutate(harm, total=FATALITIES + INJURIES)
+harm <- arrange(harm, desc(total))
+harm10 <- harm[1:10, ]
+
+harm10
+```
+
+Plotting events vs fatalities side-by-side with events vs injuries, to emphasize the top 10 events and their relationship to population impact.
+
+```{r echo=TRUE}
+
+par(mfrow=c(1,2), oma=c(0,0,1,0))
+
+barplot(harm10$FATALITIES, names.arg=harm10$EVTYPE, las=2, cex.axis=0.7,
+        cex.names=0.8,col="red",
+        ylab="Number of Fatalities")
+barplot(harm10$INJURIES, names.arg=harm10$EVTYPE, las=2, cex.axis=0.7,
+        cex.names=0.8,col="steelblue",
+        ylab="Number of Injuries")
+title("Population Impact by Storm Event",outer=TRUE)
+```
+
+These plots show that tornadoes cause the highest impact to the number of both fatalities (at 5633) and injuries (at 91,346).
+
+
+### Impact of Storm Events on the Economy
+
+In order to look at the economical impact, we create the "econ" dataset from EVTYPE, PROPDMG, CROPDMG, and do a similar comparison that we did with the "harm" dataset.
+
+```{r}
+econ <- select(subStorm, EVTYPE, PROPDMG, CROPDMG)
+econ <- econ[econ$PROPDMG>0 | econ$CROPDMG>0, ]
+
+econ <- mutate(econ, total=PROPDMG + CROPDMG)
+econ <- arrange(econ, desc(total))
+econ10 <- econ[1:10, ]
+
+econ10
+```
+
+Plotting the events vs property damage and then crop damage, will show the impact on the economics.
+
+```{r echo=TRUE}
+par(mfrow=c(1,2), oma=c(0,0,1,0))
+
+barplot(econ10$PROPDMG, names.arg=econ10$EVTYPE, las=2, cex.axis=0.7,
+        cex.names=0.8,col="sienna4",
+        ylab="Cost of Property Damage ($)")
+barplot(econ10$CROPDMG, names.arg=econ10$EVTYPE, las=2, cex.axis=0.7,
+        cex.names=0.8,col="darkgreen",
+        ylab="Cost of Crop Damage ($)")
+title("Economic Impact by Storm Event",outer=TRUE)
+```
+
+These plots show that tornadoes are the primary source of economic impact to property ($3,212,258), and hail is the cause of highest crop damage in terms of cost ($579,596). 
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
